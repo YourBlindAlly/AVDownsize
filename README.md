@@ -28,7 +28,7 @@ Compress Smaller: More aggressive compression. Larger size reduction, slight qua
 
 Compress High Quality: Conservative compression. Smaller size reduction but the output is visually very close to the original. Good when quality is the priority.
 
-Settings: Opens a window where you can change the FFmpeg path, choose an output folder, set the output file suffix, enable or disable 4K downscaling, and toggle automatic deletion of the original file.
+To change settings, run settings.ps1 directly from the AVDownsize folder by right-clicking it and choosing Run with PowerShell. Settings include the FFmpeg path, output folder, output file suffix, 4K downscaling, and automatic deletion of the original file.
 
 ## Output files
 

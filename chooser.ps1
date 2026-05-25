@@ -10,7 +10,7 @@ $scriptDir = $PSScriptRoot
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "AVDownsize"
-$form.Size = New-Object System.Drawing.Size(380, 270)
+$form.Size = New-Object System.Drawing.Size(380, 235)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -32,12 +32,11 @@ $sep.Location = New-Object System.Drawing.Point(20, 46)
 $sep.Size = New-Object System.Drawing.Size(330, 2)
 $form.Controls.Add($sep)
 
-# Radio buttons
+# Radio buttons — three compression options only
 $options = @(
-    @{ label = "Auto Compress (Recommended)"; mode = "auto" }
-    @{ label = "Compress Smaller (more aggressive)";  mode = "smaller" }
+    @{ label = "Auto Compress (Recommended)";        mode = "auto" }
+    @{ label = "Compress Smaller (more aggressive)"; mode = "smaller" }
     @{ label = "Compress High Quality (conservative)"; mode = "quality" }
-    @{ label = "Settings"; mode = "settings" }
 )
 
 $radios = @()
@@ -74,12 +73,5 @@ $form.CancelButton = $btnCancel
 if ($form.ShowDialog() -ne "OK") { exit }
 
 $mode = ($radios | Where-Object { $_.Checked } | Select-Object -First 1).Tag
-
-$ps = "powershell.exe"
 $bypass = "-ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive"
-
-if ($mode -eq "settings") {
-    Start-Process $ps -ArgumentList "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptDir\settings.ps1`""
-} else {
-    Start-Process $ps -ArgumentList "$bypass -File `"$scriptDir\compress.ps1`" -InputFile `"$InputFile`" -Mode $mode"
-}
+Start-Process "powershell.exe" -ArgumentList "$bypass -File `"$scriptDir\compress.ps1`" -InputFile `"$InputFile`" -Mode $mode"
