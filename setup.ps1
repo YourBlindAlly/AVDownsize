@@ -1,10 +1,10 @@
 # AVDownsize setup — registers the right-click context menu for video files.
 # Run this once after downloading. No administrator rights required.
 
-$scriptDir     = $PSScriptRoot
-$chooserScript = Join-Path $scriptDir "chooser.ps1"
+$scriptDir      = $PSScriptRoot
+$launcherScript = Join-Path $scriptDir "launcher.vbs"
 
-foreach ($f in @($chooserScript)) {
+foreach ($f in @($launcherScript)) {
     if (-not (Test-Path $f)) {
         Write-Host "ERROR: Missing file: $f"
         Write-Host "Make sure you are running setup.ps1 from the AVDownsize folder."
@@ -31,7 +31,7 @@ if (-not (Test-Path $settingsFile)) {
     Write-Host "Created default settings at: $settingsFile"
 }
 
-$cmd = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$chooserScript`" -InputFile `"%1`""
+$cmd = "wscript.exe `"$launcherScript`" `"%1`""
 
 $extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
