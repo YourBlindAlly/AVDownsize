@@ -14,9 +14,11 @@ FFmpeg must be installed and available on your system PATH. If you can open a co
 
 1. Download or clone this repository to any folder on your computer. The folder can stay wherever you put it, so choose a permanent home before installing.
 
-2. Right-click setup.ps1 and choose Run with PowerShell. If Windows asks about execution policy, choose to allow it.
+2. Double-click Install.bat. A brief console window will appear and then close automatically.
 
 3. That is it. Right-click any video file in File Explorer and look for AVDownsize in the context menu.
+
+To remove AVDownsize, double-click Uninstall.bat.
 
 ## Menu options
 
