@@ -1,11 +1,10 @@
 # AVDownsize setup — registers the right-click context menu for video files.
 # Run this once after downloading. No administrator rights required.
 
-$scriptDir      = $PSScriptRoot
-$compressScript = Join-Path $scriptDir "compress.ps1"
-$settingsScript = Join-Path $scriptDir "settings.ps1"
+$scriptDir     = $PSScriptRoot
+$chooserScript = Join-Path $scriptDir "chooser.ps1"
 
-foreach ($f in @($compressScript, $settingsScript)) {
+foreach ($f in @($chooserScript)) {
     if (-not (Test-Path $f)) {
         Write-Host "ERROR: Missing file: $f"
         Write-Host "Make sure you are running setup.ps1 from the AVDownsize folder."
@@ -32,40 +31,25 @@ if (-not (Test-Path $settingsFile)) {
     Write-Host "Created default settings at: $settingsFile"
 }
 
-$ps = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File"
-
-# Submenu items. Child items in a Windows cascading menu require MUIVerb (not Default) for their label.
-$subItems = @(
-    @{ id = "01_auto";     label = "Auto Compress (Recommended)"; cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto" }
-    @{ id = "02_smaller";  label = "Compress Smaller";            cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller" }
-    @{ id = "03_quality";  label = "Compress High Quality";       cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality" }
-    @{ id = "04_settings"; label = "Settings";                    cmd = "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"" }
-)
+$cmd = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$chooserScript`" -InputFile `"%1`""
 
 $extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
 foreach ($ext in $extensions) {
-    # Remove any old entries (flat or cascading) so we start clean
-    foreach ($old in @("AVDownsize", "AVDownsize_1_auto", "AVDownsize_2_smaller", "AVDownsize_3_quality", "AVDownsize_4_settings")) {
-        $oldPath = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\$old"
-        if (Test-Path $oldPath) { Remove-Item -Path $oldPath -Recurse -Force }
+    # Remove all previous AVDownsize entries (any format we may have used before)
+    $shellRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell"
+    if (Test-Path $shellRoot) {
+        Get-ChildItem $shellRoot | Where-Object { $_.PSChildName -like "AVDownsize*" } | ForEach-Object {
+            Remove-Item $_.PSPath -Recurse -Force
+        }
     }
 
-    # Create cascading parent
-    $root = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
-    New-Item -Path $root -Force | Out-Null
-    Set-ItemProperty -Path $root -Name "MUIVerb"     -Value "AVDownsize"
-    Set-ItemProperty -Path $root -Name "SubCommands" -Value ""
-    New-Item -Path "$root\shell" -Force | Out-Null
-
-    # Create child items — MUIVerb is required for labels inside a cascading menu
-    foreach ($item in $subItems) {
-        $itemPath = "$root\shell\$($item.id)"
-        New-Item -Path $itemPath -Force | Out-Null
-        Set-ItemProperty -Path $itemPath -Name "MUIVerb" -Value $item.label
-        New-Item -Path "$itemPath\command" -Force | Out-Null
-        Set-ItemProperty -Path "$itemPath\command" -Name "(Default)" -Value $item.cmd
-    }
+    # Single entry — opens chooser dialog
+    $itemRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
+    New-Item -Path $itemRoot -Force | Out-Null
+    Set-ItemProperty -Path $itemRoot -Name "(Default)" -Value "AVDownsize"
+    New-Item -Path "$itemRoot\command" -Force | Out-Null
+    Set-ItemProperty -Path "$itemRoot\command" -Name "(Default)" -Value $cmd
 }
 
 Write-Host ""
