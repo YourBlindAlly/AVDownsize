@@ -41,7 +41,6 @@ if (-not (Test-Path $InputFile)) {
 $file = Get-Item $InputFile
 $originalSize = $file.Length
 
-# Probe video metadata (stdout only — ffprobe writes JSON to stdout, info to stderr)
 $probeArgs = @("-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", $InputFile)
 $probeLines = & $s.ffprobePath @probeArgs
 $probeJson  = $probeLines -join "`n"
@@ -63,21 +62,18 @@ $codec  = $videoStream.codec_name
 $width  = [int]$videoStream.width
 $height = [int]$videoStream.height
 
-# CRF: lower = better quality / larger file. H.265 sweet spots: 22 high, 26 balanced, 32 small.
-# If already HEVC in auto mode, bump CRF slightly — re-encoding HEVC-to-HEVC gains less than H264-to-HEVC.
-$crf = switch ($Mode) {
+# CRF/quality value: lower = better quality, larger file
+$qval = switch ($Mode) {
     'auto'    { if ($codec -eq "hevc") { 28 } else { 26 } }
     'smaller' { 32 }
     'quality' { 22 }
 }
 
-# Downscale 4K to 1080p unless user chose high-quality mode
 $scaleFilter = @()
 if ($s.downscale4K -and $Mode -ne 'quality' -and ($width -ge 3840 -or $height -ge 2160)) {
     $scaleFilter = @("-vf", "scale=1920:1080:flags=lanczos")
 }
 
-# Determine output path
 $outDir = if ($s.outputFolder -and (Test-Path $s.outputFolder)) { $s.outputFolder } else { $file.DirectoryName }
 $outBase = $file.BaseName + $s.outputSuffix + ".mp4"
 $outPath = Join-Path $outDir $outBase
@@ -88,24 +84,38 @@ while (Test-Path $outPath) {
     $n++
 }
 
-# Build ffmpeg arguments
-$ffArgs = @(
-    "-i", $InputFile,
-    "-c:v", "libx265",
-    "-crf", $crf,
-    "-preset", "medium"
-) + $scaleFilter + @(
+# Auto-detect hardware encoder. Try NVIDIA, Intel, AMD in order; fall back to software.
+function Test-Encoder($encoderName) {
+    $testArgs = @("-f", "lavfi", "-i", "color=black:s=64x64:d=0.1", "-c:v", $encoderName, "-f", "null", "-")
+    & $s.ffmpegPath @testArgs 2>&1 | Out-Null
+    return $LASTEXITCODE -eq 0
+}
+
+$videoArgs = if (Test-Encoder "hevc_nvenc") {
+    # NVIDIA GPU — very fast, real-time or faster
+    @("-c:v", "hevc_nvenc", "-rc:v", "vbr", "-cq", $qval, "-preset", "p4", "-tag:v", "hvc1")
+} elseif (Test-Encoder "hevc_qsv") {
+    # Intel integrated graphics
+    @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
+} elseif (Test-Encoder "hevc_amf") {
+    # AMD GPU
+    @("-c:v", "hevc_amf", "-rc", "cqp", "-qp_i", $qval, "-qp_p", $qval, "-quality", "balanced", "-tag:v", "hvc1")
+} else {
+    # Software fallback — "fast" preset is a good balance of speed and compression
+    @("-c:v", "libx265", "-crf", $qval, "-preset", "fast", "-tag:v", "hvc1")
+}
+
+$ffArgs = @("-i", $InputFile) + $videoArgs + $scaleFilter + @(
     "-c:a", "aac",
     "-b:a", "128k",
-    "-tag:v", "hvc1",        # Apple QuickTime / iPhone compatibility
-    "-movflags", "+faststart", # Enable streaming / fast open
+    "-movflags", "+faststart",
     $outPath
 )
 
 $proc = Start-Process -FilePath $s.ffmpegPath -ArgumentList $ffArgs -Wait -PassThru -WindowStyle Hidden
 
 if ($proc.ExitCode -ne 0 -or -not (Test-Path $outPath)) {
-    Show-Error "Compression failed for:`n$($file.Name)`n`nCheck that ffmpeg supports libx265 (H.265 encoding)."
+    Show-Error "Compression failed for:`n$($file.Name)`n`nCheck that ffmpeg supports H.265 encoding."
     exit 1
 }
 

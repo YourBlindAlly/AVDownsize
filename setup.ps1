@@ -34,27 +34,37 @@ if (-not (Test-Path $settingsFile)) {
 
 $ps = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File"
 
-# Four flat menu entries per extension — no cascading submenu, more reliable across all systems
-$menuItems = @(
-    @{ id = "AVDownsize_1_auto";     label = "AVDownsize: Auto Compress";     cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto" }
-    @{ id = "AVDownsize_2_smaller";  label = "AVDownsize: Compress Smaller";  cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller" }
-    @{ id = "AVDownsize_3_quality";  label = "AVDownsize: High Quality";      cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality" }
-    @{ id = "AVDownsize_4_settings"; label = "AVDownsize: Settings";          cmd = "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"" }
+# Submenu items. Child items in a Windows cascading menu require MUIVerb (not Default) for their label.
+$subItems = @(
+    @{ id = "01_auto";     label = "Auto Compress (Recommended)"; cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto" }
+    @{ id = "02_smaller";  label = "Compress Smaller";            cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller" }
+    @{ id = "03_quality";  label = "Compress High Quality";       cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality" }
+    @{ id = "04_settings"; label = "Settings";                    cmd = "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"" }
 )
 
 $extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
 foreach ($ext in $extensions) {
-    # Remove any old cascading menu entry first
-    $oldRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
-    if (Test-Path $oldRoot) { Remove-Item -Path $oldRoot -Recurse -Force }
+    # Remove any old entries (flat or cascading) so we start clean
+    foreach ($old in @("AVDownsize", "AVDownsize_1_auto", "AVDownsize_2_smaller", "AVDownsize_3_quality", "AVDownsize_4_settings")) {
+        $oldPath = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\$old"
+        if (Test-Path $oldPath) { Remove-Item -Path $oldPath -Recurse -Force }
+    }
 
-    foreach ($item in $menuItems) {
-        $itemRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\$($item.id)"
-        New-Item -Path $itemRoot -Force | Out-Null
-        Set-ItemProperty -Path $itemRoot -Name "(Default)" -Value $item.label
-        New-Item -Path "$itemRoot\command" -Force | Out-Null
-        Set-ItemProperty -Path "$itemRoot\command" -Name "(Default)" -Value $item.cmd
+    # Create cascading parent
+    $root = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
+    New-Item -Path $root -Force | Out-Null
+    Set-ItemProperty -Path $root -Name "MUIVerb"     -Value "AVDownsize"
+    Set-ItemProperty -Path $root -Name "SubCommands" -Value ""
+    New-Item -Path "$root\shell" -Force | Out-Null
+
+    # Create child items — MUIVerb is required for labels inside a cascading menu
+    foreach ($item in $subItems) {
+        $itemPath = "$root\shell\$($item.id)"
+        New-Item -Path $itemPath -Force | Out-Null
+        Set-ItemProperty -Path $itemPath -Name "MUIVerb" -Value $item.label
+        New-Item -Path "$itemPath\command" -Force | Out-Null
+        Set-ItemProperty -Path "$itemPath\command" -Name "(Default)" -Value $item.cmd
     }
 }
 
