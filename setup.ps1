@@ -36,29 +36,38 @@ if (-not (Test-Path $settingsFile)) {
     Write-Host "Created default settings at: $settingsFile"
 }
 
-# Register context menu under HKCU — no admin needed, affects current user only.
-# SystemFileAssociations\video covers all file types Windows recognizes as video.
-$root = "HKCU:\Software\Classes\SystemFileAssociations\video\shell\AVDownsize"
-
-New-Item -Path $root -Force | Out-Null
-Set-ItemProperty -Path $root -Name "MUIVerb"      -Value "AVDownsize - Compress Video"
-Set-ItemProperty -Path $root -Name "SubCommands"  -Value ""
-New-Item -Path "$root\shell" -Force | Out-Null
-
-function Register-MenuItem($id, $label, $command) {
-    $itemPath = "$root\shell\$id"
-    New-Item -Path $itemPath -Force | Out-Null
-    Set-ItemProperty -Path $itemPath -Name "(Default)" -Value $label
-    New-Item -Path "$itemPath\command" -Force | Out-Null
-    Set-ItemProperty -Path "$itemPath\command" -Name "(Default)" -Value $command
-}
-
 $ps = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File"
 
-Register-MenuItem "01_auto"     "Auto Compress (Recommended)"  "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto"
-Register-MenuItem "02_smaller"  "Compress Smaller"             "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller"
-Register-MenuItem "03_quality"  "Compress High Quality"        "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality"
-Register-MenuItem "04_settings" "Settings"                     "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`""
+function Register-MenuRoot($root) {
+    New-Item -Path $root -Force | Out-Null
+    Set-ItemProperty -Path $root -Name "MUIVerb"     -Value "AVDownsize - Compress Video"
+    Set-ItemProperty -Path $root -Name "SubCommands" -Value ""
+    New-Item -Path "$root\shell" -Force | Out-Null
+
+    $items = @(
+        @("01_auto",     "Auto Compress (Recommended)",  "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto"),
+        @("02_smaller",  "Compress Smaller",             "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller"),
+        @("03_quality",  "Compress High Quality",        "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality"),
+        @("04_settings", "Settings",                     "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"")
+    )
+
+    foreach ($item in $items) {
+        $itemPath = "$root\shell\$($item[0])"
+        New-Item -Path $itemPath -Force | Out-Null
+        Set-ItemProperty -Path $itemPath -Name "(Default)" -Value $item[1]
+        New-Item -Path "$itemPath\command" -Force | Out-Null
+        Set-ItemProperty -Path "$itemPath\command" -Name "(Default)" -Value $item[2]
+    }
+}
+
+# Register for the generic video perceived type (covers most files on most systems)
+Register-MenuRoot "HKCU:\Software\Classes\SystemFileAssociations\video\shell\AVDownsize"
+
+# Also register for specific extensions so files not tagged as video type are covered
+$extensions = @(".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
+foreach ($ext in $extensions) {
+    Register-MenuRoot "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
+}
 
 Write-Host ""
 Write-Host "AVDownsize installed successfully."
