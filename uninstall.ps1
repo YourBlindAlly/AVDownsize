@@ -1,18 +1,17 @@
 # AVDownsize uninstall — removes all right-click context menu entries.
 # Your settings in AppData are preserved. Delete the AVDownsize folder there if you want a clean removal.
 
-$roots = @("HKCU:\Software\Classes\SystemFileAssociations\video\shell\AVDownsize")
-
-$extensions = @(".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
-foreach ($ext in $extensions) {
-    $roots += "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
-}
+$ids = @("AVDownsize", "AVDownsize_1_auto", "AVDownsize_2_smaller", "AVDownsize_3_quality", "AVDownsize_4_settings")
+$extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
 $removed = 0
-foreach ($root in $roots) {
-    if (Test-Path $root) {
-        Remove-Item -Path $root -Recurse -Force
-        $removed++
+foreach ($ext in $extensions) {
+    foreach ($id in $ids) {
+        $path = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\$id"
+        if (Test-Path $path) {
+            Remove-Item -Path $path -Recurse -Force
+            $removed++
+        }
     }
 }
 

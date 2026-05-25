@@ -5,7 +5,6 @@ $scriptDir      = $PSScriptRoot
 $compressScript = Join-Path $scriptDir "compress.ps1"
 $settingsScript = Join-Path $scriptDir "settings.ps1"
 
-# Verify scripts are present
 foreach ($f in @($compressScript, $settingsScript)) {
     if (-not (Test-Path $f)) {
         Write-Host "ERROR: Missing file: $f"
@@ -15,13 +14,10 @@ foreach ($f in @($compressScript, $settingsScript)) {
     }
 }
 
-# Create AppData folder and default settings if not already present
 $settingsDir  = Join-Path $env:APPDATA "AVDownsize"
 $settingsFile = Join-Path $settingsDir "settings.json"
 
-if (-not (Test-Path $settingsDir)) {
-    New-Item -ItemType Directory -Path $settingsDir | Out-Null
-}
+if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $settingsDir | Out-Null }
 
 if (-not (Test-Path $settingsFile)) {
     @{
@@ -38,35 +34,28 @@ if (-not (Test-Path $settingsFile)) {
 
 $ps = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File"
 
-function Register-MenuRoot($root) {
-    New-Item -Path $root -Force | Out-Null
-    Set-ItemProperty -Path $root -Name "MUIVerb"     -Value "AVDownsize - Compress Video"
-    Set-ItemProperty -Path $root -Name "SubCommands" -Value ""
-    New-Item -Path "$root\shell" -Force | Out-Null
+# Four flat menu entries per extension — no cascading submenu, more reliable across all systems
+$menuItems = @(
+    @{ id = "AVDownsize_1_auto";     label = "AVDownsize: Auto Compress";     cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto" }
+    @{ id = "AVDownsize_2_smaller";  label = "AVDownsize: Compress Smaller";  cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller" }
+    @{ id = "AVDownsize_3_quality";  label = "AVDownsize: High Quality";      cmd = "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality" }
+    @{ id = "AVDownsize_4_settings"; label = "AVDownsize: Settings";          cmd = "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"" }
+)
 
-    $items = @(
-        @("01_auto",     "Auto Compress (Recommended)",  "$ps `"$compressScript`" -InputFile `"%1`" -Mode auto"),
-        @("02_smaller",  "Compress Smaller",             "$ps `"$compressScript`" -InputFile `"%1`" -Mode smaller"),
-        @("03_quality",  "Compress High Quality",        "$ps `"$compressScript`" -InputFile `"%1`" -Mode quality"),
-        @("04_settings", "Settings",                     "powershell.exe -ExecutionPolicy Bypass -File `"$settingsScript`"")
-    )
+$extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
-    foreach ($item in $items) {
-        $itemPath = "$root\shell\$($item[0])"
-        New-Item -Path $itemPath -Force | Out-Null
-        Set-ItemProperty -Path $itemPath -Name "(Default)" -Value $item[1]
-        New-Item -Path "$itemPath\command" -Force | Out-Null
-        Set-ItemProperty -Path "$itemPath\command" -Name "(Default)" -Value $item[2]
-    }
-}
-
-# Register for the generic video perceived type (covers most files on most systems)
-Register-MenuRoot "HKCU:\Software\Classes\SystemFileAssociations\video\shell\AVDownsize"
-
-# Also register for specific extensions so files not tagged as video type are covered
-$extensions = @(".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 foreach ($ext in $extensions) {
-    Register-MenuRoot "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
+    # Remove any old cascading menu entry first
+    $oldRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
+    if (Test-Path $oldRoot) { Remove-Item -Path $oldRoot -Recurse -Force }
+
+    foreach ($item in $menuItems) {
+        $itemRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\$($item.id)"
+        New-Item -Path $itemRoot -Force | Out-Null
+        Set-ItemProperty -Path $itemRoot -Name "(Default)" -Value $item.label
+        New-Item -Path "$itemRoot\command" -Force | Out-Null
+        Set-ItemProperty -Path "$itemRoot\command" -Name "(Default)" -Value $item.cmd
+    }
 }
 
 Write-Host ""
