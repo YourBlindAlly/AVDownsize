@@ -29,8 +29,20 @@ if (Test-Path $settingsPath) {
     $s = [PSCustomObject]$defaults
 }
 
+function New-TopForm {
+    $f = New-Object System.Windows.Forms.Form
+    $f.TopMost = $true
+    $f.StartPosition = "CenterScreen"
+    $f.Size = New-Object System.Drawing.Size(1, 1)
+    $f.Show()
+    $f.Hide()
+    return $f
+}
+
 function Show-Error($msg) {
-    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Error", 0, 16) | Out-Null
+    $owner = New-TopForm
+    [System.Windows.Forms.MessageBox]::Show($owner, $msg, "AVDownsize Error", 0, 16) | Out-Null
+    $owner.Dispose()
 }
 
 if (-not (Test-Path $InputFile)) {
@@ -91,20 +103,21 @@ function Test-Encoder($encoderName) {
     return $LASTEXITCODE -eq 0
 }
 
+$encoderName = $null
 $videoArgs = if (Test-Encoder "hevc_qsv") {
-    # Intel Quick Sync (integrated graphics) — much faster than software
+    $encoderName = "Intel Quick Sync (hevc_qsv)"
     @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
 } elseif (Test-Encoder "hevc_nvenc") {
-    # NVIDIA GPU — very fast, real-time or faster
+    $encoderName = "NVIDIA NVENC (hevc_nvenc)"
     @("-c:v", "hevc_nvenc", "-rc:v", "vbr", "-cq", $qval, "-preset", "p4", "-tag:v", "hvc1")
 } elseif (Test-Encoder "hevc_amf") {
-    # AMD GPU
+    $encoderName = "AMD AMF (hevc_amf)"
     @("-c:v", "hevc_amf", "-rc", "cqp", "-qp_i", $qval, "-qp_p", $qval, "-quality", "balanced", "-tag:v", "hvc1")
 } elseif (Test-Encoder "hevc_mf") {
-    # Windows MediaFoundation — uses whatever hardware Windows has available
+    $encoderName = "Windows MediaFoundation (hevc_mf)"
     @("-c:v", "hevc_mf", "-tag:v", "hvc1")
 } else {
-    # Software fallback — "fast" preset is a good balance of speed and compression
+    $encoderName = "Software (libx265)"
     @("-c:v", "libx265", "-crf", $qval, "-preset", "fast", "-tag:v", "hvc1")
 }
 
@@ -128,8 +141,10 @@ $origMB    = [math]::Round($originalSize / 1MB, 1)
 $newMB     = [math]::Round($newSize / 1MB, 1)
 
 if ($s.showSummary) {
-    $msg = "Compression complete.`n`nFile: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%"
-    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Complete", 0, 64) | Out-Null
+    $msg = "Compression complete.`n`nFile: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%`nEncoder:    $encoderName"
+    $owner = New-TopForm
+    [System.Windows.Forms.MessageBox]::Show($owner, $msg, "AVDownsize Complete", 0, 64) | Out-Null
+    $owner.Dispose()
 }
 
 if ($s.deleteOriginal) {
