@@ -84,22 +84,25 @@ while (Test-Path $outPath) {
     $n++
 }
 
-# Auto-detect hardware encoder. Try NVIDIA, Intel, AMD in order; fall back to software.
+# Auto-detect hardware encoder. Order matters — try most likely first for this system.
 function Test-Encoder($encoderName) {
     $testArgs = @("-f", "lavfi", "-i", "color=black:s=64x64:d=0.1", "-c:v", $encoderName, "-f", "null", "-")
     & $s.ffmpegPath @testArgs 2>&1 | Out-Null
     return $LASTEXITCODE -eq 0
 }
 
-$videoArgs = if (Test-Encoder "hevc_nvenc") {
+$videoArgs = if (Test-Encoder "hevc_qsv") {
+    # Intel Quick Sync (integrated graphics) — much faster than software
+    @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
+} elseif (Test-Encoder "hevc_nvenc") {
     # NVIDIA GPU — very fast, real-time or faster
     @("-c:v", "hevc_nvenc", "-rc:v", "vbr", "-cq", $qval, "-preset", "p4", "-tag:v", "hvc1")
-} elseif (Test-Encoder "hevc_qsv") {
-    # Intel integrated graphics
-    @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
 } elseif (Test-Encoder "hevc_amf") {
     # AMD GPU
     @("-c:v", "hevc_amf", "-rc", "cqp", "-qp_i", $qval, "-qp_p", $qval, "-quality", "balanced", "-tag:v", "hvc1")
+} elseif (Test-Encoder "hevc_mf") {
+    # Windows MediaFoundation — uses whatever hardware Windows has available
+    @("-c:v", "hevc_mf", "-tag:v", "hvc1")
 } else {
     # Software fallback — "fast" preset is a good balance of speed and compression
     @("-c:v", "libx265", "-crf", $qval, "-preset", "fast", "-tag:v", "hvc1")
