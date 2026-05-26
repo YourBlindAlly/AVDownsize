@@ -6,21 +6,21 @@ AVDownsize is a Windows File Explorer right-click context menu tool that compres
 
 ## How it works
 
-The user right-clicks a video file in File Explorer and selects AVDownsize. A small WinForms dialog appears with three radio button choices: Auto Compress, Compress Smaller, and Compress High Quality. After pressing OK the dialog closes, FFmpeg runs silently in the background, and a summary MessageBox pops up on top when done showing original size, compressed size, and percentage reduction.
+The user right-clicks a video file in File Explorer and selects AVDownsize. A small WinForms dialog appears with three radio button choices: Auto Compress, Compress Smaller, and Compress High Quality. After pressing OK the dialog closes, FFmpeg runs in the background, and a summary MessageBox appears when done showing original size, compressed size, percentage reduction, and encoder used.
 
 ## File structure
 
-chooser.ps1 — WinForms dialog that presents the three compression options. Launched by the registry context menu entry. On OK it spawns compress.ps1 as a hidden process.
+chooser.ps1 — WinForms dialog presenting three compression options. Launched by the registry context menu entry. Hides its console window via Windows API (GetConsoleWindow/ShowWindow). On OK spawns compress.ps1 as a separate process.
 
-compress.ps1 — Main compression engine. Accepts -InputFile and -Mode parameters. Probes the video with ffprobe, auto-detects hardware encoders (hevc_qsv, hevc_nvenc, hevc_amf, hevc_mf) and falls back to software libx265. Shows a TopMost MessageBox on completion with size stats and encoder name.
+compress.ps1 — Main compression engine. Accepts -InputFile and -Mode parameters. Hides its own console window via Windows API. Probes video with ffprobe, auto-detects hardware encoders, falls back to software libx265. Uses call operator with splatting (& ffmpeg @args) to correctly handle file paths with spaces. Shows completion MessageBox with size stats and encoder name.
 
-settings.ps1 — WinForms settings dialog. Not currently accessible from the chooser. Run it directly by right-clicking and choosing Run with PowerShell. Saves to %APPDATA%\AVDownsize\settings.json.
+settings.ps1 — WinForms settings dialog. Not accessible from the chooser. Run directly by right-clicking and choosing Run with PowerShell. Saves to %APPDATA%\AVDownsize\settings.json.
 
-setup.ps1 — Registers the context menu in HKCU (no admin required). Registers under SystemFileAssociations for the generic video type and for specific extensions: .mp4 .mov .avi .mkv .wmv .m4v .flv .webm .mpg .mpeg .ts .mts .m2ts .3gp. Also creates the default settings.json if it does not exist.
+setup.ps1 — Registers the context menu in HKCU (no admin required). Runs Unblock-File on all scripts to remove the downloaded-from-internet security mark. Registers under SystemFileAssociations for video and specific extensions: .mp4 .mov .avi .mkv .wmv .m4v .flv .webm .mpg .mpeg .ts .mts .m2ts .3gp.
 
-uninstall.ps1 — Removes all AVDownsize registry entries. Preserves the settings file in %APPDATA%.
+uninstall.ps1 — Removes all AVDownsize registry entries. Preserves settings in %APPDATA%.
 
-Install.bat — Double-click to install. Calls setup.ps1 with -ExecutionPolicy Bypass so no policy prompt appears.
+Install.bat — Double-click to install.
 
 Uninstall.bat — Double-click to uninstall.
 
@@ -40,29 +40,37 @@ Auto: CRF 26 for H.264 source, CRF 28 if already H.265. Good balance.
 Smaller: CRF 32. More aggressive, good for archiving.
 High Quality: CRF 22. Conservative, visually near-lossless. Does not downscale 4K.
 
-All modes encode to H.265 (HEVC), output as .mp4 with -tag:v hvc1 for Apple compatibility.
+All modes encode to H.265 (HEVC), output as .mp4 with -tag:v hvc1 for Apple compatibility. FFmpeg is called with the & operator and array splatting to handle paths with spaces correctly.
 
 ## Hardware encoder detection
 
-compress.ps1 tests encoders in this order: hevc_qsv (Intel Quick Sync), hevc_nvenc (NVIDIA), hevc_amf (AMD), hevc_mf (Windows MediaFoundation), then libx265 software. The test encodes a tiny black frame and checks the exit code.
+compress.ps1 tests encoders in this order: hevc_qsv (Intel Quick Sync), hevc_nvenc (NVIDIA), hevc_amf (AMD), then libx265 software fallback. The test does a real 1-second encode to a temp mp4 file to catch encoders that pass a trivial test but fail on real content.
 
-On Rusty's machine (HP EliteDesk 800, Intel integrated graphics, Windows 10) hevc_qsv is listed by FFmpeg but fails the runtime test — the Intel Media SDK runtime is likely missing or outdated. The tool falls back to libx265 with the "fast" preset. Updating the Intel graphics driver via Intel Driver and Support Assistant may fix this.
+On Rusty's machine (HP EliteDesk 800, Intel integrated graphics, Windows 10 22H2, FFmpeg 8.8.1) all hardware encoders fail the test. The tool uses libx265 with the "fast" preset. Intel Driver and Support Assistant found no outdated drivers, so the Intel Media SDK runtime for QSV may simply not be present on this system.
 
-## Known issues and things not yet done
+## Two remaining UI issues — top priority for next session
 
-Settings are not accessible from the chooser dialog. When launched from chooser.ps1 the settings window was unreliable. For now run settings.ps1 directly from the AVDownsize folder.
+These are the main things to fix when work resumes.
 
-A VBScript launcher (launcher.vbs) was attempted to eliminate the brief PowerShell console flash when the menu is activated. Windows blocked it because downloaded files from GitHub get a Zone.Identifier mark. The approach was reverted. The console flash is minor and currently accepted.
+Issue 1: Blank PowerShell console window appears after the chooser dialog closes and stays visible throughout compression. The Windows API approach (GetConsoleWindow/ShowWindow) was added to both chooser.ps1 and compress.ps1 but is not reliably hiding the window on this machine. The VBScript launcher approach (wscript.exe has no console at all) was blocked by Windows security policy on this business PC (HP EliteDesk 800). Approaches tried and failed: -WindowStyle Hidden alone, VBScript launcher via wscript.exe, Windows API GetConsoleWindow/ShowWindow. One untried approach: compiling a tiny C# wrapper exe that launches PowerShell with the Windows subsystem flag, which produces no console window. Another option worth trying: Start-Process with -WindowStyle Hidden from within chooser.ps1 when spawning compress.ps1, combined with the API hide in chooser.ps1 itself.
 
-The Windows Shell cascading submenu (SubCommands registry approach) was attempted twice and never worked reliably with the screen reader. The current WinForms dialog approach is better for accessibility anyway.
+Issue 2: Completion MessageBox appears behind other windows. DefaultDesktopOnly MessageBoxOptions flag was added but is not reliably bringing the box to the front. The user has to alt-tab through multiple windows to find it. Consider showing the notification via a WinForms form with TopMost=true that contains a label and OK button, rather than a MessageBox, since forms with TopMost behave more reliably than MessageBox with DefaultDesktopOnly.
 
-Batch selection: when multiple files are selected and AVDownsize is chosen, Windows calls the command once per file, spawning multiple simultaneous compression processes. For large batches this could cause high CPU load. Not yet addressed.
+## Other known issues and future ideas
+
+Settings are not accessible from the chooser dialog. Run settings.ps1 directly.
+
+The Windows Shell cascading submenu (SubCommands registry approach) was attempted twice and never worked reliably with the screen reader. The current WinForms chooser dialog is better for accessibility anyway.
+
+Batch selection spawns one process per file simultaneously. Could cause high CPU load on large batches.
+
+Future ideas discussed but not implemented: start notification so user knows compression is running, context menu entry for Settings, compression log file.
 
 ## User notes
 
-Rusty is a screen reader user. All UI must be accessible. Prefer WinForms dialogs over console output for any user-facing messages. MessageBox calls use a TopMost owner form so they appear in front of other windows. No markdown symbols or bullet points in responses to Rusty — plain text only.
+Rusty is a screen reader user (Windows 10, NVDA or similar). All UI must be accessible. No markdown symbols or bullet points in responses — plain text only. WinForms dialogs are preferred over console output for all user-facing messages.
 
-FFmpeg version 8.8.1 is installed on Rusty's machine and on the system PATH.
+FFmpeg version 8.8.1 is installed on Rusty's machine and on the system PATH. ffprobe is also available.
 
 ## Repository
 
