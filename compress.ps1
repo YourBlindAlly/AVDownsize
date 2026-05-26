@@ -129,9 +129,12 @@ $ffArgs = @("-i", $InputFile) + $videoArgs + $scaleFilter + @(
     $outPath
 )
 
-$proc = Start-Process -FilePath $s.ffmpegPath -ArgumentList $ffArgs -Wait -PassThru -WindowStyle Hidden
+# Use the call operator with splatting — each array element is passed as a
+# separate argument, so paths with spaces are handled correctly without quoting.
+& $s.ffmpegPath @ffArgs 2>&1 | Out-Null
+$ffExitCode = $LASTEXITCODE
 
-if ($proc.ExitCode -ne 0 -or -not (Test-Path $outPath)) {
+if ($ffExitCode -ne 0 -or -not (Test-Path $outPath)) {
     Show-Error "Compression failed for:`n$($file.Name)`n`nEncoder tried: $encoderName`nCheck that ffmpeg is working correctly."
     exit 1
 }
