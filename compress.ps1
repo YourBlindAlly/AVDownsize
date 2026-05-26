@@ -96,29 +96,27 @@ while (Test-Path $outPath) {
     $n++
 }
 
-# Auto-detect hardware encoder. Order matters — try most likely first for this system.
-function Test-Encoder($encoderName) {
-    $testArgs = @("-f", "lavfi", "-i", "color=black:s=64x64:d=0.1", "-c:v", $encoderName, "-f", "null", "-")
+# Auto-detect hardware encoder. Uses a real short encode as the test, not just a
+# null output, so encoders that pass a trivial test but fail on real content are caught.
+function Test-Encoder($encoderName, $extraArgs) {
+    $tmp = [System.IO.Path]::GetTempFileName() + ".mp4"
+    $testArgs = @("-f", "lavfi", "-i", "color=black:s=128x128:d=1", "-c:v", $encoderName) + $extraArgs + @("-t", "1", "-y", $tmp)
     & $s.ffmpegPath @testArgs 2>&1 | Out-Null
-    return $LASTEXITCODE -eq 0
+    $ok = $LASTEXITCODE -eq 0 -and (Test-Path $tmp)
+    if (Test-Path $tmp) { Remove-Item $tmp -Force }
+    return $ok
 }
 
 $encoderName = $null
-$videoArgs = if (Test-Encoder "hevc_qsv") {
+$videoArgs = if (Test-Encoder "hevc_qsv" @("-global_quality", "28")) {
     $encoderName = "Intel Quick Sync (hevc_qsv)"
     @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
-} elseif (Test-Encoder "hevc_d3d12va") {
-    $encoderName = "Direct3D 12 (hevc_d3d12va)"
-    @("-c:v", "hevc_d3d12va", "-qp", $qval, "-tag:v", "hvc1")
-} elseif (Test-Encoder "hevc_nvenc") {
+} elseif (Test-Encoder "hevc_nvenc" @("-cq", "28")) {
     $encoderName = "NVIDIA NVENC (hevc_nvenc)"
     @("-c:v", "hevc_nvenc", "-rc:v", "vbr", "-cq", $qval, "-preset", "p4", "-tag:v", "hvc1")
-} elseif (Test-Encoder "hevc_amf") {
+} elseif (Test-Encoder "hevc_amf" @("-rc", "cqp", "-qp_i", "28", "-qp_p", "28")) {
     $encoderName = "AMD AMF (hevc_amf)"
     @("-c:v", "hevc_amf", "-rc", "cqp", "-qp_i", $qval, "-qp_p", $qval, "-quality", "balanced", "-tag:v", "hvc1")
-} elseif (Test-Encoder "hevc_mf") {
-    $encoderName = "Windows MediaFoundation (hevc_mf)"
-    @("-c:v", "hevc_mf", "-tag:v", "hvc1")
 } else {
     $encoderName = "Software (libx265)"
     @("-c:v", "libx265", "-crf", $qval, "-preset", "fast", "-tag:v", "hvc1")
@@ -134,7 +132,7 @@ $ffArgs = @("-i", $InputFile) + $videoArgs + $scaleFilter + @(
 $proc = Start-Process -FilePath $s.ffmpegPath -ArgumentList $ffArgs -Wait -PassThru -WindowStyle Hidden
 
 if ($proc.ExitCode -ne 0 -or -not (Test-Path $outPath)) {
-    Show-Error "Compression failed for:`n$($file.Name)`n`nCheck that ffmpeg supports H.265 encoding."
+    Show-Error "Compression failed for:`n$($file.Name)`n`nEncoder tried: $encoderName`nCheck that ffmpeg is working correctly."
     exit 1
 }
 
