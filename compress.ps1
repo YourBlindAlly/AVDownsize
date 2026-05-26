@@ -107,6 +107,9 @@ $encoderName = $null
 $videoArgs = if (Test-Encoder "hevc_qsv") {
     $encoderName = "Intel Quick Sync (hevc_qsv)"
     @("-c:v", "hevc_qsv", "-global_quality", $qval, "-preset", "medium", "-tag:v", "hvc1")
+} elseif (Test-Encoder "hevc_d3d12va") {
+    $encoderName = "Direct3D 12 (hevc_d3d12va)"
+    @("-c:v", "hevc_d3d12va", "-qp", $qval, "-tag:v", "hvc1")
 } elseif (Test-Encoder "hevc_nvenc") {
     $encoderName = "NVIDIA NVENC (hevc_nvenc)"
     @("-c:v", "hevc_nvenc", "-rc:v", "vbr", "-cq", $qval, "-preset", "p4", "-tag:v", "hvc1")
