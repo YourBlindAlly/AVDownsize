@@ -7,6 +7,14 @@ param(
 
 Add-Type -AssemblyName System.Windows.Forms
 
+# Hide the console window immediately using the Windows API
+Add-Type -Name ConsoleHelper -Namespace AVD -MemberDefinition '
+    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll")]   public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+'
+$hwnd = [AVD.ConsoleHelper]::GetConsoleWindow()
+if ($hwnd -ne [IntPtr]::Zero) { [AVD.ConsoleHelper]::ShowWindow($hwnd, 0) | Out-Null }
+
 $settingsPath = Join-Path $env:APPDATA "AVDownsize\settings.json"
 $defaults = @{
     ffmpegPath     = "ffmpeg"
