@@ -29,20 +29,12 @@ if (Test-Path $settingsPath) {
     $s = [PSCustomObject]$defaults
 }
 
-function New-TopForm {
-    $f = New-Object System.Windows.Forms.Form
-    $f.TopMost = $true
-    $f.StartPosition = "CenterScreen"
-    $f.Size = New-Object System.Drawing.Size(1, 1)
-    $f.Show()
-    $f.Hide()
-    return $f
-}
-
 function Show-Error($msg) {
-    $owner = New-TopForm
-    [System.Windows.Forms.MessageBox]::Show($owner, $msg, "AVDownsize Error", 0, 16) | Out-Null
-    $owner.Dispose()
+    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Error", `
+        [System.Windows.Forms.MessageBoxButtons]::OK, `
+        [System.Windows.Forms.MessageBoxIcon]::Error, `
+        [System.Windows.Forms.MessageBoxDefaultButton]::Button1, `
+        [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly) | Out-Null
 }
 
 if (-not (Test-Path $InputFile)) {
@@ -145,9 +137,11 @@ $newMB     = [math]::Round($newSize / 1MB, 1)
 
 if ($s.showSummary) {
     $msg = "Compression complete.`n`nFile: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%`nEncoder:    $encoderName"
-    $owner = New-TopForm
-    [System.Windows.Forms.MessageBox]::Show($owner, $msg, "AVDownsize Complete", 0, 64) | Out-Null
-    $owner.Dispose()
+    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Complete", `
+        [System.Windows.Forms.MessageBoxButtons]::OK, `
+        [System.Windows.Forms.MessageBoxIcon]::Information, `
+        [System.Windows.Forms.MessageBoxDefaultButton]::Button1, `
+        [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly) | Out-Null
 }
 
 if ($s.deleteOriginal) {

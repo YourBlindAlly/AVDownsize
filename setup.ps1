@@ -1,10 +1,11 @@
 # AVDownsize setup — registers the right-click context menu for video files.
 # Run this once after downloading. No administrator rights required.
 
-$scriptDir     = $PSScriptRoot
-$chooserScript = Join-Path $scriptDir "chooser.ps1"
+$scriptDir      = $PSScriptRoot
+$launcherScript = Join-Path $scriptDir "launcher.vbs"
+$chooserScript  = Join-Path $scriptDir "chooser.ps1"
 
-foreach ($f in @($chooserScript)) {
+foreach ($f in @($launcherScript, $chooserScript)) {
     if (-not (Test-Path $f)) {
         Write-Host "ERROR: Missing file: $f"
         Write-Host "Make sure you are running setup.ps1 from the AVDownsize folder."
@@ -12,6 +13,11 @@ foreach ($f in @($chooserScript)) {
         exit 1
     }
 }
+
+# Unblock all files in this folder — removes the security mark Windows adds to
+# downloaded files, which would otherwise silently block the VBScript launcher.
+Write-Host "Unblocking script files..."
+Get-ChildItem $scriptDir | ForEach-Object { Unblock-File $_.FullName -ErrorAction SilentlyContinue }
 
 $settingsDir  = Join-Path $env:APPDATA "AVDownsize"
 $settingsFile = Join-Path $settingsDir "settings.json"
@@ -31,12 +37,12 @@ if (-not (Test-Path $settingsFile)) {
     Write-Host "Created default settings at: $settingsFile"
 }
 
-$cmd = "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -NonInteractive -File `"$chooserScript`" -InputFile `"%1`""
+# wscript.exe has no console window at all — completely silent launch
+$cmd = "wscript.exe `"$launcherScript`" `"%1`""
 
 $extensions = @("video", ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".flv", ".webm", ".mpg", ".mpeg", ".ts", ".mts", ".m2ts", ".3gp")
 
 foreach ($ext in $extensions) {
-    # Remove all previous AVDownsize entries (any format we may have used before)
     $shellRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell"
     if (Test-Path $shellRoot) {
         Get-ChildItem $shellRoot | Where-Object { $_.PSChildName -like "AVDownsize*" } | ForEach-Object {
@@ -44,7 +50,6 @@ foreach ($ext in $extensions) {
         }
     }
 
-    # Single entry — opens chooser dialog
     $itemRoot = "HKCU:\Software\Classes\SystemFileAssociations\$ext\shell\AVDownsize"
     New-Item -Path $itemRoot -Force | Out-Null
     Set-ItemProperty -Path $itemRoot -Name "(Default)" -Value "AVDownsize"
