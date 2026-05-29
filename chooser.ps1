@@ -6,13 +6,11 @@ param(
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Hide the console window immediately using the Windows API
-Add-Type -Name ConsoleHelper -Namespace AVD -MemberDefinition '
-    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")]   public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+# Detach from the console window entirely so it disappears immediately
+Add-Type -Name Kernel -Namespace AVD -MemberDefinition '
+    [DllImport("kernel32.dll")] public static extern bool FreeConsole();
 '
-$hwnd = [AVD.ConsoleHelper]::GetConsoleWindow()
-if ($hwnd -ne [IntPtr]::Zero) { [AVD.ConsoleHelper]::ShowWindow($hwnd, 0) | Out-Null }
+[AVD.Kernel]::FreeConsole() | Out-Null
 
 $scriptDir = $PSScriptRoot
 

@@ -6,14 +6,13 @@ param(
 )
 
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-# Hide the console window immediately using the Windows API
-Add-Type -Name ConsoleHelper -Namespace AVD -MemberDefinition '
-    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")]   public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+# Detach from the console window entirely so it disappears immediately
+Add-Type -Name Kernel -Namespace AVD -MemberDefinition '
+    [DllImport("kernel32.dll")] public static extern bool FreeConsole();
 '
-$hwnd = [AVD.ConsoleHelper]::GetConsoleWindow()
-if ($hwnd -ne [IntPtr]::Zero) { [AVD.ConsoleHelper]::ShowWindow($hwnd, 0) | Out-Null }
+[AVD.Kernel]::FreeConsole() | Out-Null
 
 $settingsPath = Join-Path $env:APPDATA "AVDownsize\settings.json"
 $defaults = @{
@@ -37,13 +36,36 @@ if (Test-Path $settingsPath) {
     $s = [PSCustomObject]$defaults
 }
 
-function Show-Error($msg) {
-    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Error", `
-        [System.Windows.Forms.MessageBoxButtons]::OK, `
-        [System.Windows.Forms.MessageBoxIcon]::Error, `
-        [System.Windows.Forms.MessageBoxDefaultButton]::Button1, `
-        [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly) | Out-Null
+# TopMost form used for all notifications so they appear in front of every window
+function Show-Notice($title, $msg) {
+    $f = New-Object System.Windows.Forms.Form
+    $f.Text = $title
+    $f.TopMost = $true
+    $f.StartPosition = "CenterScreen"
+    $f.FormBorderStyle = "FixedDialog"
+    $f.MaximizeBox = $false
+    $f.MinimizeBox = $false
+    $f.Size = New-Object System.Drawing.Size(440, 230)
+
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Location = New-Object System.Drawing.Point(20, 20)
+    $lbl.Size = New-Object System.Drawing.Size(400, 140)
+    $lbl.Text = $msg
+    $f.Controls.Add($lbl)
+
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text = "OK"
+    $btn.DialogResult = "OK"
+    $btn.Location = New-Object System.Drawing.Point(180, 165)
+    $btn.Size = New-Object System.Drawing.Size(80, 28)
+    $f.Controls.Add($btn)
+    $f.AcceptButton = $btn
+
+    $f.ShowDialog() | Out-Null
+    $f.Dispose()
 }
+
+function Show-Error($msg) { Show-Notice "AVDownsize Error" $msg }
 
 if (-not (Test-Path $InputFile)) {
     Show-Error "File not found:`n$InputFile"
@@ -145,12 +167,8 @@ $origMB    = [math]::Round($originalSize / 1MB, 1)
 $newMB     = [math]::Round($newSize / 1MB, 1)
 
 if ($s.showSummary) {
-    $msg = "Compression complete.`n`nFile: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%`nEncoder:    $encoderName"
-    [System.Windows.Forms.MessageBox]::Show($msg, "AVDownsize Complete", `
-        [System.Windows.Forms.MessageBoxButtons]::OK, `
-        [System.Windows.Forms.MessageBoxIcon]::Information, `
-        [System.Windows.Forms.MessageBoxDefaultButton]::Button1, `
-        [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly) | Out-Null
+    $msg = "File: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%`nEncoder:    $encoderName"
+    Show-Notice "AVDownsize Complete" $msg
 }
 
 if ($s.deleteOriginal) {
