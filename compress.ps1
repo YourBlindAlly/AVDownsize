@@ -43,11 +43,16 @@ function Show-Notice($title, $msg) {
     $f.MinimizeBox = $false
     $f.Size = New-Object System.Drawing.Size(440, 230)
 
-    $lbl = New-Object System.Windows.Forms.Label
-    $lbl.Location = New-Object System.Drawing.Point(20, 20)
-    $lbl.Size = New-Object System.Drawing.Size(400, 140)
-    $lbl.Text = $msg
-    $f.Controls.Add($lbl)
+    $txt = New-Object System.Windows.Forms.TextBox
+    $txt.Location = New-Object System.Drawing.Point(20, 20)
+    $txt.Size = New-Object System.Drawing.Size(400, 140)
+    $txt.Text = $msg
+    $txt.ReadOnly = $true
+    $txt.BorderStyle = "None"
+    $txt.BackColor = $f.BackColor
+    $txt.Multiline = $true
+    $txt.TabStop = $true
+    $f.Controls.Add($txt)
 
     $btn = New-Object System.Windows.Forms.Button
     $btn.Text = "OK"
@@ -57,6 +62,7 @@ function Show-Notice($title, $msg) {
     $f.Controls.Add($btn)
     $f.AcceptButton = $btn
 
+    $f.ActiveControl = $txt
     $f.ShowDialog() | Out-Null
     $f.Dispose()
 }
@@ -86,8 +92,15 @@ try {
 
 $videoStream = $probe.streams | Where-Object { $_.codec_type -eq "video" } | Select-Object -First 1
 if (-not $videoStream) {
-    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = "No video stream found in: $($file.Name)" } }
-    Show-Error "No video stream found in:`n$($file.Name)"
+    $otherStreams = $probe.streams | ForEach-Object { $_.codec_type } | Sort-Object -Unique
+    $detail = if ($otherStreams) {
+        "Streams found: $($otherStreams -join ', ').`nThis may be an audio-only file saved with a video extension."
+    } else {
+        "No streams found at all. The file may be corrupt or incomplete."
+    }
+    $errMsg = "No video stream found in: $($file.Name)`n`n$detail"
+    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = $errMsg } }
+    Show-Error $errMsg
     exit 1
 }
 
