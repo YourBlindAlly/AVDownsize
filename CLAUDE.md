@@ -50,11 +50,22 @@ On Rusty's machine (HP EliteDesk 800, Intel integrated graphics, Windows 10 22H2
 
 ## Two remaining UI issues — top priority for next session
 
-These are the main things to fix when work resumes.
+These are the main things to fix when work resumes. Both have been worked on extensively. A fresh perspective is needed.
 
-Issue 1: Blank PowerShell console window appears after the chooser dialog closes and stays visible throughout compression. The Windows API approach (GetConsoleWindow/ShowWindow) was added to both chooser.ps1 and compress.ps1 but is not reliably hiding the window on this machine. The VBScript launcher approach (wscript.exe has no console at all) was blocked by Windows security policy on this business PC (HP EliteDesk 800). Approaches tried and failed: -WindowStyle Hidden alone, VBScript launcher via wscript.exe, Windows API GetConsoleWindow/ShowWindow. One untried approach: compiling a tiny C# wrapper exe that launches PowerShell with the Windows subsystem flag, which produces no console window. Another option worth trying: Start-Process with -WindowStyle Hidden from within chooser.ps1 when spawning compress.ps1, combined with the API hide in chooser.ps1 itself.
+Issue 1: Blank PowerShell console window appears and stays visible throughout compression. It goes away only after the user clicks OK on the completion dialog.
+Tried and failed:
+  -WindowStyle Hidden alone — window still appears
+  Windows API GetConsoleWindow/ShowWindow — did not hide window
+  VBScript launcher via wscript.exe — blocked by group policy on this HP EliteDesk 800 business PC
+  FreeConsole() via Windows API — broke the WinForms dialog entirely, nothing appeared at all
+Untried: compiling a small C# or Go wrapper exe that uses the Windows subsystem (no console by design) to launch PowerShell. This is the most promising remaining option.
 
-Issue 2: Completion MessageBox appears behind other windows. DefaultDesktopOnly MessageBoxOptions flag was added but is not reliably bringing the box to the front. The user has to alt-tab through multiple windows to find it. Consider showing the notification via a WinForms form with TopMost=true that contains a label and OK button, rather than a MessageBox, since forms with TopMost behave more reliably than MessageBox with DefaultDesktopOnly.
+Issue 2: Completion notification does not appear in front of other windows. User has to alt-tab through the full stack of open windows to find it.
+Tried and failed:
+  MessageBox with DefaultDesktopOnly option — appeared but did not take focus
+  WinForms form with TopMost=true — appeared but did not take focus either
+Current state: compress.ps1 uses a TopMost WinForms form for the completion notice (this replaced the MessageBox). TopMost makes the window appear above others visually once found, but it still does not steal focus from whatever the user is currently doing.
+Untried: calling SetForegroundWindow() and BringWindowToTop() via Windows API on the form's handle after showing it. Also worth trying: using the form's Activate() method combined with setting it as the foreground window before ShowDialog(). The restriction on focus stealing in Windows (introduced in Windows 2000) may require calling AllowSetForegroundWindow() first.
 
 ## Other known issues and future ideas
 
