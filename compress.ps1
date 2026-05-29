@@ -2,12 +2,12 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$InputFile,
     [ValidateSet('auto', 'smaller', 'quality')]
-    [string]$Mode = 'auto'
+    [string]$Mode = 'auto',
+    [switch]$PassThru
 )
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-
 
 $settingsPath = Join-Path $env:APPDATA "AVDownsize\settings.json"
 $defaults = @{
@@ -31,7 +31,8 @@ if (Test-Path $settingsPath) {
     $s = [PSCustomObject]$defaults
 }
 
-# TopMost form used for all notifications so they appear in front of every window
+# TopMost form used for all notifications so they appear in front of every window.
+# Only used when compress.ps1 is invoked standalone (not via chooser.ps1 -PassThru).
 function Show-Notice($title, $msg) {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = $title
@@ -63,6 +64,7 @@ function Show-Notice($title, $msg) {
 function Show-Error($msg) { Show-Notice "AVDownsize Error" $msg }
 
 if (-not (Test-Path $InputFile)) {
+    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = "File not found: $InputFile" } }
     Show-Error "File not found:`n$InputFile"
     exit 1
 }
@@ -77,12 +79,14 @@ $probeJson  = $probeLines -join "`n"
 try {
     $probe = $probeJson | ConvertFrom-Json
 } catch {
+    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = "Could not read video metadata for: $($file.Name). Is ffprobe installed and on your PATH?" } }
     Show-Error "Could not read video metadata for:`n$($file.Name)`n`nIs ffprobe installed and on your PATH?"
     exit 1
 }
 
 $videoStream = $probe.streams | Where-Object { $_.codec_type -eq "video" } | Select-Object -First 1
 if (-not $videoStream) {
+    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = "No video stream found in: $($file.Name)" } }
     Show-Error "No video stream found in:`n$($file.Name)"
     exit 1
 }
@@ -152,6 +156,7 @@ $ffArgs = @("-i", $InputFile) + $videoArgs + $scaleFilter + @(
 $ffExitCode = $LASTEXITCODE
 
 if ($ffExitCode -ne 0 -or -not (Test-Path $outPath)) {
+    if ($PassThru) { return [PSCustomObject]@{ Success = $false; Error = "Compression failed for: $($file.Name). Encoder tried: $encoderName. Check that ffmpeg is working correctly." } }
     Show-Error "Compression failed for:`n$($file.Name)`n`nEncoder tried: $encoderName`nCheck that ffmpeg is working correctly."
     exit 1
 }
@@ -161,11 +166,22 @@ $reduction = [math]::Round((1 - $newSize / $originalSize) * 100)
 $origMB    = [math]::Round($originalSize / 1MB, 1)
 $newMB     = [math]::Round($newSize / 1MB, 1)
 
+if ($s.deleteOriginal) {
+    Remove-Item $InputFile -Force
+}
+
+if ($PassThru) {
+    return [PSCustomObject]@{
+        Success     = $true
+        FileName    = $file.Name
+        OrigMB      = $origMB
+        NewMB       = $newMB
+        Reduction   = $reduction
+        EncoderName = $encoderName
+    }
+}
+
 if ($s.showSummary) {
     $msg = "File: $($file.Name)`nOriginal:   $origMB MB`nCompressed: $newMB MB`nReduced by: $reduction%`nEncoder:    $encoderName"
     Show-Notice "AVDownsize Complete" $msg
-}
-
-if ($s.deleteOriginal) {
-    Remove-Item $InputFile -Force
 }

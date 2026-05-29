@@ -99,7 +99,7 @@ function Add-Check($labelText, $checked, $top) {
 
 $chkDelete    = Add-Check "Delete original after compression" $s.deleteOriginal $y; $y += 28
 $chkDownscale = Add-Check "Downscale 4K video to 1080p"      $s.downscale4K    $y; $y += 28
-$chkSummary   = Add-Check "Show completion summary"           $s.showSummary    $y; $y += 42
+$chkSummary   = Add-Check "Show completion summary (uncheck for silent mode)" $s.showSummary $y; $y += 42
 
 # Save / Cancel
 $btnSave = New-Object System.Windows.Forms.Button
