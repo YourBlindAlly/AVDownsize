@@ -8,11 +8,6 @@ param(
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Detach from the console window entirely so it disappears immediately
-Add-Type -Name Kernel -Namespace AVD -MemberDefinition '
-    [DllImport("kernel32.dll")] public static extern bool FreeConsole();
-'
-[AVD.Kernel]::FreeConsole() | Out-Null
 
 $settingsPath = Join-Path $env:APPDATA "AVDownsize\settings.json"
 $defaults = @{
