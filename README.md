@@ -2,6 +2,8 @@
 
 Right-click any video file in Windows File Explorer to compress and downsize it automatically using FFmpeg. Inspired by SonicAxiom's AVConvert.
 
+Always get the latest version here: https://github.com/YourBlindAlly/AVDownsize/releases/latest
+
 ## What it does
 
 AVDownsize analyzes your video file and re-encodes it to H.265 (HEVC), which typically cuts file size by 40 to 60 percent with no visible quality loss. You choose a compression level from a small submenu, and the result lands in the same folder with a new file name. The original is left untouched unless you turn on the delete option in Settings.
