@@ -101,7 +101,18 @@ $chkDelete    = Add-Check "Delete original after compression" $s.deleteOriginal 
 $chkDownscale = Add-Check "Downscale 4K video to 1080p"      $s.downscale4K    $y; $y += 28
 $chkSummary   = Add-Check "Show completion summary (uncheck for silent mode)" $s.showSummary $y; $y += 42
 
-# Save / Cancel
+# Open Log Folder / Save / Cancel
+$btnLogs = New-Object System.Windows.Forms.Button
+$btnLogs.Text = "Open Log Folder"
+$btnLogs.Location = New-Object System.Drawing.Point(20, $y)
+$btnLogs.Size = New-Object System.Drawing.Size(130, 30)
+$btnLogs.Add_Click({
+    $logDir = Join-Path $env:APPDATA "AVDownsize\logs"
+    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
+    Start-Process "explorer.exe" $logDir
+})
+$form.Controls.Add($btnLogs)
+
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = "Save"
 $btnSave.DialogResult = "OK"

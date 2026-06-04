@@ -8,7 +8,11 @@ AVDownsize analyzes your video file and re-encodes it to H.265 (HEVC), which typ
 
 ## Requirements
 
-FFmpeg must be installed and available on your system PATH. If you can open a command prompt and type ffmpeg and get a response, you are good. If not, download FFmpeg from ffmpeg.org and follow their Windows installation instructions.
+Windows 10 or later. PowerShell 5.1 is required and is built into Windows 10 and later, so no separate installation is needed.
+
+FFmpeg 4.0 or later must be installed and available on your system PATH. FFmpeg 6.0 or later is recommended. If you can open a command prompt and type ffmpeg and get a response, you are good. If not, download FFmpeg from ffmpeg.org and follow their Windows installation instructions.
+
+To check your FFmpeg version, open a command prompt and type: ffmpeg -version
 
 ## Installation
 
@@ -37,6 +41,10 @@ By default, compressed files are saved in the same folder as the original with _
 ## Batch processing
 
 Select multiple video files in File Explorer, right-click, and choose a compression option. Windows will process each file in sequence.
+
+## Logs
+
+AVDownsize keeps a log of every compression run in AppData\Roaming\AVDownsize\logs. Each run creates a timestamped file recording the file name, ffprobe results, encoder tests, ffmpeg command, exit code, and final result. The 20 most recent logs are kept and older ones are deleted automatically. If something goes wrong, the log is the first place to look. You can open the log folder from the Settings window using the Open Log Folder button.
 
 ## Uninstalling
 
